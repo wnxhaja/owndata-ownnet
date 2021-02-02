@@ -1,6 +1,6 @@
 {
   "name": "@feathersjs-offline/server",
-  "version": "1.0.6",
+  "version": "2.0.0-pre",
   "description": "Server part of implementation of the own-data / own-net principles for supporting offline-first functionality for Feathers (mobile) applications.",
   "keywords": [
     "Feathersjs",
@@ -58,6 +58,7 @@
     "debug": "^4.3.1",
     "md5": "^2.3.0",
     "shortid": "^2.2.16",
+    "uberproto": "2.0.6",
     "uuid": "^8.3.2"
   },
   "devDependencies": {

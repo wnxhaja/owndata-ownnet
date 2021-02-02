@@ -5,6 +5,7 @@ const sorter = require('./sorter'); // require('@feathersjs/adapter-commons');
 const { service2, service4 } = require('./client-service');
 const setUpHooks = require('./setup-hooks');
 const failCountHook = require('./fail-count-hook');
+const failCountMixin = require('./fail-count-mixin');
 const clone = require('./clone');
 const delay = require('./delay');
 const assertDeepEqualExcept = require('./assert-deep-equal-except');
@@ -24,7 +25,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
 
   function setupServices () {
     clientService = service2(wrapper, serviceName);
-    setUpHooks('REMOTE', serviceName, clientService.remote, true, verbose);
+//    setUpHooks('REMOTE', serviceName, clientService.remote, true, verbose);
     setUpHooks('CLIENT', serviceName, clientService.local, false, verbose);
 
     return clientService;
@@ -153,7 +154,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
           .then(async result => {
             assert.ok(result.onServerAt !== ts, 'onServerAt is preserved (1)');
             assert.ok(result.id === data[0].id, 'onServerAt is preserved (1a)');
-            assert.ok(result.onServerAt.toISOString() === new Date(0).toISOString(), 'onServerAt is preserved (2)');
+            assert.ok(result.onServerAt === new Date(0).toISOString(), 'onServerAt is preserved (2)');
             assertDeepEqualExcept([result], [{ id: 0, uuid: 1000, order: 99 }], ['updatedAt', 'onServerAt']);
           });
       });
@@ -165,7 +166,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
           .then(async result => {
             assert.ok(result.onServerAt !== ts, 'onServerAt is preserved (1)');
             assert.ok(result.id === data[1].id, 'onServerAt is preserved (1a)');
-            assert.ok(result.onServerAt.toISOString() === new Date(0).toISOString(), 'onServerAt is preserved (2)');
+            assert.ok(result.onServerAt === new Date(0).toISOString(), 'onServerAt is preserved (2)');
             assertDeepEqualExcept([result], [{ id: 1, uuid: 1001, order: 99 }], ['updatedAt', 'onServerAt']);
           });
       });
@@ -260,8 +261,8 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
           .then(delay())
       });
 
-      it('get succeeds correctly', () => {
-        return clientService.get(0, { query: { _fail: true } })
+      it.only('get succeeds correctly', () => {
+        return clientService.get(0)
           .then(res => {
             assert(res.id === 0, 'Succeeded as expected');
           })
@@ -272,7 +273,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
       });
 
       it('get fails correctly - unknown id', () => {
-        return clientService.get(9999, { query: { _fail: true } })
+        return clientService.get(9999)
           .then(() => {
             assert(false, 'Unexpectedly succeeded');
           })
@@ -281,9 +282,13 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
           })
       });
 
-      it('create works and sync recovers', () => {
+      it.only('create works and sync recovers', async () => {
         let clientRows = null;
-        failCountHook('REMOTE', serviceName, clientService.remote, 'create', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
+
+        let test = await clientService.find();
+        console.log(`data = ${JSON.stringify(test)}`);
+        failCountMixin('REMOTE', serviceName, clientService.remote, 'create', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
+        failCountMixin('REMOTE', serviceName, clientService.remote, '_create', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
 
         return clientService.create({ id: 99, uuid: 1099, order: 99 })
           .then(delay())
@@ -312,7 +317,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
 
       it('update works and sync recovers', () => {
         let clientRows = null;
-        failCountHook('REMOTE', serviceName, clientService.remote, 'update', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
+        failCountMixin('REMOTE', serviceName, clientService.remote, 'update', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
 
         return clientService.update(0, { id: 0, uuid: 1000, order: 99 })
           .then(delay())
@@ -343,7 +348,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
       it('patch works and sync recovers', () => {
         let clientRows = [];
         let remoteRows = [];
-        failCountHook('REMOTE', serviceName, clientService.remote, 'patch', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
+        failCountMixin('REMOTE', serviceName, clientService.remote, 'patch', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
 
         return clientService.patch(1, { order: 99 })
           .then(delay())
@@ -382,7 +387,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
       it('remove works and sync recovers', () => {
         let clientRows = [];
         let remoteRows = [];
-        failCountHook('REMOTE', serviceName, clientService.remote, 'remove', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
+        failCountMixin('REMOTE', serviceName, clientService.remote, 'remove', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
 
         return clientService.remove(2)
           .then(delay())
@@ -459,7 +464,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
       it('create works and sync recovers', async () => {
         let beforeRows = null;
         let afterRows = null;
-        failCountHook('REMOTE', serviceName, clientService.remote, 'create', 1);
+        failCountMixin('REMOTE', serviceName, clientService.remote, 'create', 1);
 
         // The server have the original 5 rows
         return getRows(clientService)
@@ -495,7 +500,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
       it('update works and sync recovers', () => {
         let beforeRows = null;
         let afterRows = null;
-        failCountHook('REMOTE', serviceName, clientService.remote, 'update', 1);
+        failCountMixin('REMOTE', serviceName, clientService.remote, 'update', 1);
 
         // The server have the original 5 rows
         return getRows(clientService)
@@ -530,7 +535,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
       it('patch works and sync recovers', () => {
         let beforeRows = null;
         let afterRows = null;
-        failCountHook('REMOTE', serviceName, clientService.remote, 'patch', 1);
+        failCountMixin('REMOTE', serviceName, clientService.remote, 'patch', 1);
 
         // The server have the original 5 rows
         return getRows(clientService)
@@ -567,7 +572,7 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
       it('remove works and sync recovers', () => {
         let beforeRows = null;
         let afterRows = null;
-        failCountHook('REMOTE', serviceName, clientService.remote, 'remove', 1);
+        failCountMixin('REMOTE', serviceName, clientService.remote, 'remove', 1);
 
         return getRows(clientService)
           .then(rows => { beforeRows = rows; })

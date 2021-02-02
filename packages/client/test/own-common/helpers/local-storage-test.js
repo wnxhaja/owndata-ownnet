@@ -1,6 +1,6 @@
 const { assert, expect } = require('chai');
 const feathers = require('@feathersjs/feathers');
-const memory = require('feathers-memory');
+const { Service } = require('feathers-memory');
 const _ = require('lodash');
 const { omit } = _;
 const sorter = require('./sorter'); // require('@feathersjs/adapter-commons');
@@ -17,8 +17,9 @@ module.exports = (desc, _app, _errors, wrapper, serviceName, verbose, isBaseClas
 
   function setupServices () {
     app = feathers();
-    app.use(serviceName, memory({ multi: true, storage: new LocalStorage() }));
-    clientService = wrapper(app, serviceName);
+    wrapper(app, serviceName, {});
+    app.use(serviceName, new Service({ multi: true, storage: new LocalStorage() }));
+    clientService = app.service(serviceName);
 
     return clientService;
   }

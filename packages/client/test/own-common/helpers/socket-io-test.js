@@ -49,9 +49,9 @@ module.exports = (desc, _app, _errors, wrapperFn, serviceName, verbose, port = 7
     });
 
     it('can call service', () => {
+      wrapperFn(null, {});
       app.service(serviceName);
-      cApp.service(serviceName);
-      wrapperFn(cApp, serviceName, {});
+      // cApp.service(serviceName);
 
       return cApp.service(serviceName).create({ firstName: 'Fred', lastName: 'Flintstone' })
         .then(res => {
@@ -77,6 +77,7 @@ module.exports = (desc, _app, _errors, wrapperFn, serviceName, verbose, port = 7
     })
 
     it('activates wrapped services hook', () => {
+      wrapperFn(null, {});
       cApp.service(serviceName).hooks({
         before: {
           all: [async context => {
@@ -86,7 +87,6 @@ module.exports = (desc, _app, _errors, wrapperFn, serviceName, verbose, port = 7
           ]
         }
       });
-      wrapperFn(cApp, serviceName, {});
 
       return cApp.service(serviceName).create({ firstName: 'Fred', lastName: 'Flintstone' })
         .then(res => {
@@ -114,7 +114,7 @@ module.exports = (desc, _app, _errors, wrapperFn, serviceName, verbose, port = 7
 
     it('wrapped service triggers event handlers', () => {
       let flag = false;
-      wrapperFn(cApp, serviceName, {});
+      wrapperFn(null, {});
       cApp.service(serviceName).on('created', () => { flag = true; });
 
       return cApp.service(serviceName).create({ firstName: 'Fred', lastName: 'Flintstone' })

@@ -1,6 +1,6 @@
 'use strict';
 const adapterTests = require('@feathersjs/adapter-tests');
-const memory = require('feathers-memory');
+const { Service } = require('feathers-memory');
 
 const testSuite = adapterTests([
   '.options',
@@ -70,26 +70,30 @@ const testSuite = adapterTests([
   '.find + paginate + params'
 ]);
 
+
 module.exports = (title, app, _errors, wrapper, serviceName, idProp) => {
 
-describe(title, () => {
-  beforeEach(() => {
+  describe(title, () => {
+    beforeEach(() => {
+    });
+
+    // Let's perform all the usual adapter tests to verify full functionality
+    const events = ['testing'];
+
+    if (idProp !== undefined && idProp !== 'id') {
+      app.use(serviceName, new Service({ events, id: idProp }));
+      wrapper(app, serviceName, { events, id: idProp, adapterTest: true, store: {} });
+    } else {
+      app.use(serviceName, new Service({ events }));
+      // const service = app.service(serviceName);
+      // const oldCreate = service.proxy('create');
+      // Object.assign(service, { create (data, options) { console.log('HELLO!!'); return oldCreate.call(this, data, options)}})
+      wrapper(app, serviceName, { adapterTest: true, store: {} });
+      // We want to test the wrappers default value for id (which is 'id')
+      idProp = 'id';
+    }
+
+    testSuite(app, _errors, serviceName, idProp);
   });
-
-  // Let's perform all the usual adapter tests to verify full functionality
-  const events = ['testing'];
-
-  if (idProp !== undefined && idProp !== 'id') {
-    app.use(serviceName, memory({ events, id: idProp }));
-    wrapper(app, serviceName, {adapterTest: true, store: {}});
-  } else {
-    app.use(serviceName, memory({ events }));
-    // We want to test the wrappers default value for id (which is 'id')
-    wrapper(app, serviceName, {adapterTest: true, store: {}});
-    idProp = 'id';
-  }
-
-  testSuite(app, _errors, serviceName, idProp);
-});
 
 };

@@ -1,6 +1,6 @@
 {
   "name": "@feathersjs-offline/client",
-  "version": "1.0.6",
+  "version": "2.0.0-pre",
   "description": "Client part of implementation of the own-data / own-net principles for supporting offline-first functionality for Feathers (mobile) applications.",
   "keywords": [
     "feathers",
@@ -59,6 +59,7 @@
     "md5": "^2.3.0",
     "node-localstorage": "^2.1.6",
     "shortid": "^2.2.16",
+    "uberproto": "2.0.6",
     "uuid": "^8.3.2"
   },
   "devDependencies": {

@@ -2,7 +2,7 @@
 // Most of this code has been copied from 'https://github.com/feathers-plus/feathers-offline-snapshot/blob/master/src/index.js'
 // with permission from @eddyystop
 //
-import makeDebug from 'debug';
+const makeDebug = require('debug');
 const debug = makeDebug('@feathersjs-offline:snapshot');
 
 function snapshot (service, baseQuery) {

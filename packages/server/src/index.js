@@ -1,11 +1,11 @@
 // Main module for server
-import EventEmitter from 'component-emitter';
-import sift from 'sift';
-import { sorter, select, AdapterService } from '@feathersjs/adapter-commons';
-import { _, hooks, stripSlashes } from '@feathersjs/commons';
-import errors from '@feathersjs/errors';
-import { genUuid } from './cryptographic';
-import to from './to';
+const EventEmitter = require('component-emitter');
+const sift = require('sift');
+const { sorter, select, AdapterService } = require('@feathersjs/adapter-commons');
+const { _, hooks, stripSlashes } = require('@feathersjs/commons');
+const errors = require('@feathersjs/errors');
+const { genUuid } = require('./cryptographic');
+const to = require('./to');
 const debug = require('debug')('@feathersjs-offline:server:index');
 
 const defOptions = {

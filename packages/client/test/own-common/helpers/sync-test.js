@@ -7,8 +7,7 @@ const socketioClient = require('@feathersjs/socketio-client');
 const memory = require('feathers-memory');
 const io = require('socket.io-client');
 const delay = require('./delay');
-const setUpHooks = require('./setup-hooks');
-const failCountHook = require('./fail-count-hook');
+const failCountMixin = require('./fail-count-mixin');
 const { realtimeWrapper } = require('../../../../server/src');
 
 let app;
@@ -65,7 +64,7 @@ module.exports = (desc, _app, _errors, wrapperFn, serviceName, verbose, port = 9
       // Define client
       app = feathers();
       app.configure(socketioClient(socket));
-      app.use(serviceName, wrapperFn({id: 'id'}));
+      wrapperFn(app, serviceName);
       service = app.service(serviceName);
       // ['created', 'updated', 'patched', 'removed'].forEach(a => service.on(a, logAction('CLIENT', a)));
       // ['created', 'updated', 'patched', 'removed'].forEach(a => service.local.on(a, logAction('LOCAL', a)));
@@ -73,7 +72,7 @@ module.exports = (desc, _app, _errors, wrapperFn, serviceName, verbose, port = 9
     });
 
     it('sync works', () => {
-      failCountHook('REMOTE', serviceName, remote, 'create', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
+      failCountMixin('REMOTE', serviceName, remote, 'create', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
 
       return service.create({ id: 99, order: 99 })
         .then(data => {
@@ -109,6 +108,8 @@ module.exports = (desc, _app, _errors, wrapperFn, serviceName, verbose, port = 9
         .then(delay())
         .then(data => {
           clientSyncResult = data;
+          console.log(`remoteData: ${JSON.stringify(remoteSyncResult)}`);
+          console.log(`clientData: ${JSON.stringify(clientSyncResult)}`);
           if (!isBaseClass) {
             expect(remoteSyncResult.length).to.equal(clientSyncResult.length, 'Same number of documents');
           }
@@ -130,10 +131,11 @@ module.exports = (desc, _app, _errors, wrapperFn, serviceName, verbose, port = 9
       // Define 2nd client
       let app2 = feathers();
       app2.configure(socketioClient(socket));
-      app2.use(serviceName, wrapperFn({id: 'id'}));
+      app2.service(serviceName);
+      wrapperFn(app2, serviceName, {id: 'id'});
       const service2 = app2.service(serviceName);
 
-      failCountHook('REMOTE', serviceName, remote, 'create', 2, errors.Timeout, 'Fail requested by user request - simulated time-out error');
+      failCountMixin('REMOTE', serviceName, remote, 'create', 2, errors.Timeout, 'Fail requested by user request - simulated time-out error');
 
       return service.create({ id: 99, order: 99 })
         .then(data => {
@@ -240,7 +242,7 @@ module.exports = (desc, _app, _errors, wrapperFn, serviceName, verbose, port = 9
         .then(() => service.patch(96, {order: 396}))
         .then(delay())
         .then(() => {
-          failCountHook('REMOTE', serviceName, remote, 'patch', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
+          failCountMixin('REMOTE', serviceName, remote, 'patch', 1, errors.Timeout, 'Fail requested by user request - simulated time-out error');
         })
         .then(() => service2.patch(96, {order: 496}))
         .then(delay())

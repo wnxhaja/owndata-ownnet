@@ -66,6 +66,8 @@ function compare (a, b, compareStrings = compareNSB) {
 };
 
 module.exports = function sorter ($sort) {
+  let sortLevels = false; // True if $sort has tags with '.' i.e. '{a: 1, b: -1, "c.x.z": 1}'
+
   function getVal (a, sortKeys) {
     let keys = sortKeys.map(key => key);
     let val = a;
@@ -80,6 +82,7 @@ module.exports = function sorter ($sort) {
   const criteria = Object.keys($sort).map(key => {
     const direction = $sort[key];
     const keys = key.split('.');
+    sortLevels = keys.length > 1;
 
     return { keys, direction };
   });
@@ -88,7 +91,11 @@ module.exports = function sorter ($sort) {
     let compVal;
 
     for (const criterion of criteria) {
-      compVal = criterion.direction * compare(getVal(a, criterion.keys), getVal(b, criterion.keys));
+      if (sortLevels) {
+        compVal = criterion.direction * compare(getVal(a, criterion.keys), getVal(b, criterion.keys));
+      } else {
+        compVal = criterion.direction * compare(a[criterion.keys[0]], b[criterion.keys[0]]);
+      }
 
       if (compVal !== 0) {
         return compVal;

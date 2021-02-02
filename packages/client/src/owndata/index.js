@@ -1,78 +1,82 @@
-import { stripSlashes } from '@feathersjs/commons';
-import errors from '@feathersjs/errors';
-import { to } from '../common';
-import OwnClass from '../own-common';
+const { stripSlashes } = require('@feathersjs/commons');
+const errors = require('@feathersjs/errors');
+const { to } = require('../common');
+const OwnClass = require('../own-common');
 
 const debug = require('debug')('@feathersjs-offline:owndata:service-wrapper');
 const BOT = new Date(0).toISOString();
 
-class OwndataClass extends OwnClass {
-  constructor (opts) {
-    debug(`Constructor started, opts = ${JSON.stringify(opts)}`);
-    super(opts);
+const OwndataClass = function (cls, opts) {
+  let OwndataParent = OwnClass(cls, opts);
 
-    this.type = 'own-data';
-    this.__forTestingOnly = super._processQueuedEvents;
+  return class OwndataClass extends OwndataParent {
+    constructor(opts) {
+      debug(`Constructor started, opts = ${JSON.stringify(opts)}`);
+      super(opts);
 
-    debug('  Done.');
-    return this;
-  }
+      this.type = 'own-data';
+      this.__forTestingOnly = super._processQueuedEvents;
 
-  async _processQueuedEvents () {
-    debug(`processQueuedEvents (${this.type}) entered`);
-    if(!this.internalProcessingAllowed() || this.pQActive) {
-      // console.log(`processingQueuedEvents: internalProcessing (aIP=${this.aIP}), pQActive=${this.pQActive}`);
-      return false;
-    }
-    this.pQActive = true;
-
-    let [err, store] = await to(this.localQueue.getEntries({query:{$sort: {[this.id]: 1}}}));
-    if (!store || store === []) {
-      this.pQActive = false;
-      return true;
+      debug('  Done.');
+      return this;
     }
 
-    debug(`  processing ${store.length} queued entries...`);
-    let self = this;
-    let stop = false;
-    while (store.length && !stop) {
-      let el = store.shift();
-      let { eventName, record, arg1, arg2, arg3 = null, id } = el;
-      ({eventName, el, arg1, arg2, arg3, id} = _accEvent(this.id, eventName, record, arg1, arg2, arg3, id));
+    async _processQueuedEvents() {
+      debug(`processQueuedEvents (${this.type}) entered`);
+      if (!this.internalProcessingAllowed() || this.pQActive) {
+        // console.log(`processingQueuedEvents: internalProcessing (aIP=${this.aIP}), pQActive=${this.pQActive}`);
+        return false;
+      }
+      this.pQActive = true;
 
-      debug(`    processing: event=${eventName}, arg1=${JSON.stringify(arg1)}, arg2=${JSON.stringify(arg2)}, arg3=${JSON.stringify(arg3)}`)
-      await self.remoteService[eventName](arg1, arg2, arg3)
-        .then(async res => {
-          await to(self.localQueue.remove(id));
-          if (eventName !== 'remove') {
-            // Let any updates to the document/item on server reflect on the local DB
-            await to(self.localService.patch(res[self.id], res));
-          }
-        })
-        .catch(async err => {
-          debug(`catch: record=${JSON.stringify(record)}, BOT=${JSON.stringify(BOT)}, event=${eventName}, id=${id}`);
-          if (record.onServerAt === BOT  &&  eventName === 'remove') {
-            // This record has probably never been on server (=remoteService), so we silently ignore the error
+      let [err, store] = await to(this.localQueue.getEntries({ query: { $sort: { [this.id]: 1 } } }));
+      if (!store || store === []) {
+        this.pQActive = false;
+        return true;
+      }
+
+      debug(`  processing ${store.length} queued entries...`);
+      let self = this;
+      let stop = false;
+      while (store.length && !stop) {
+        let el = store.shift();
+        let { eventName, record, arg1, arg2, arg3 = null, id } = el;
+        ({ eventName, el, arg1, arg2, arg3, id } = _accEvent(this.id, eventName, record, arg1, arg2, arg3, id));
+
+        debug(`    processing: event=${eventName}, arg1=${JSON.stringify(arg1)}, arg2=${JSON.stringify(arg2)}, arg3=${JSON.stringify(arg3)}`)
+        await self.remoteService[eventName](arg1, arg2, arg3)
+          .then(async res => {
             await to(self.localQueue.remove(id));
-          }
-          else {
-            // The connection to the server has probably been cut - let's continue at another time
-            stop = true;
-          }
-        });
+            if (eventName !== 'remove') {
+              // Let any updates to the document/item on server reflect on the local DB
+              await to(self.localService.patch(res[self.id], res));
+            }
+          })
+          .catch(async err => {
+            debug(`catch: record=${JSON.stringify(record)}, BOT=${JSON.stringify(BOT)}, event=${eventName}, id=${id}`);
+            if (record.onServerAt === BOT && eventName === 'remove') {
+              // This record has probably never been on server (=remoteService), so we silently ignore the error
+              await to(self.localQueue.remove(id));
+            }
+            else {
+              // The connection to the server has probably been cut - let's continue at another time
+              stop = true;
+            }
+          });
+      }
+
+      debug(`  processing ended, stop=${stop}`);
+
+      this.pQActive = false;
+
+      return !stop;
     }
 
-    debug(`  processing ended, stop=${stop}`);
-
-    this.pQActive = false;
-
-    return !stop;
   }
+}
 
-};
-
-function init (options) {
-  return new OwndataClass(options);
+function init(cls, options) {
+  return new OwndataClass(cls, options);
 }
 
 let Owndata = init;
@@ -99,9 +103,9 @@ let Owndata = init;
  * @param {object} options The options for the serviceAdaptor AND the OwndataWrapper
  *
  */
-function owndataWrapper (app, path, options = {}) {
+function xowndataWrapper(app, path, options = {}) {
   debug(`owndataWrapper started on path '${path}'`)
-  if (!(app && app.version && app.service && app.services) ) {
+  if (!(app && app.version && app.service && app.services)) {
     throw new errors.Unavailable(`The FeathersJS app must be supplied as first argument`);
   }
 
@@ -121,13 +125,15 @@ function owndataWrapper (app, path, options = {}) {
   return service;
 }
 
+const owndataWrapper = (cls, opts) => { return new Owndata(cls, opts) };
+
 module.exports = { init, Owndata, owndataWrapper };
 
 init.Service = OwndataClass;
 
 // Helper
 
-function _accEvent (idName, eventName, el, arg1, arg2, arg3, id) {
+function _accEvent(idName, eventName, el, arg1, arg2, arg3, id) {
   let elId = el[idName];
   switch (eventName) {
     case 'create':
