@@ -86,6 +86,7 @@ describe(title, () => {
     app.use(serviceName, memory({ events }));
     // We want to test the wrappers default value for id (which is 'id')
     wrapper(app, serviceName, {adapterTest: true, store: {}});
+    app.setup();
     idProp = 'id';
   }
 

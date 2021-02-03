@@ -9,7 +9,7 @@ const io = require('socket.io-client');
 const delay = require('./delay');
 const setUpHooks = require('./setup-hooks');
 const failCountHook = require('./fail-count-hook');
-const { realtimeWrapper } = require('../../../../server/src');
+const { realtimeWrapper } = require('../../../../server/lib');
 
 let app;
 let service;

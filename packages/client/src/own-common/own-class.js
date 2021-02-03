@@ -4,7 +4,7 @@ import { sorter, select, AdapterService } from '@feathersjs/adapter-commons';
 import { _, hooks, stripSlashes } from '@feathersjs/commons';
 import errors from '@feathersjs/errors';
 import ls from 'feathers-localstorage';
-import { genUuid, to, OptionsProxy } from '../common';
+import { genUuid, to, OptionsProxy, removeRoute } from '../common';
 import snapshot from '../snapshot';
 
 const debug = require('debug')('@feathersjs-offline:ownclass:service-base');
@@ -72,12 +72,21 @@ class OwnClass extends AdapterService {
     return this;
   }
 
-  async _setup (app, path) {  // This will be removed for future versions of Feathers
+  _setup (app, path) {  // This will be removed for future versions of Feathers
     debug(`_SetUp('${path}') started`);
-    return this.setup(app, path);
+    if (this.__setupPerformed) { // Assure we only run setup once
+      return;
+    }
+    this.__setupPerformed = true;
+
+    if (this.remoteService._setup) {
+      this.remoteService._setup(app, path);
+      app.use(path, this);  // Install this service instance
+    }
+      return;
   }
 
-  async setup (app, path) {
+  setup (app, path) {
     debug(`SetUp('${path}') started`);
     if (this._setupPerformed) { // Assure we only run setup once
       return;
@@ -86,38 +95,35 @@ class OwnClass extends AdapterService {
 
     this.options = this.wrapperOptions;
 
-    let self = this;
+    const self = this;
     this.thisName = this.options.fixedName !== '' ? this.options.fixedName : `${this.type}_offline_${nameIx++}_${path}`;
 
     // Now we are ready to define the path with its underlying service (the remoteService)
-    let old = app.service(path);
-    if (old !== self) {
-      this.remoteService = old; // We want to get the default service (redirects to server or points to a local service)
-      app.use(path, self);  // Install this service instance
-    }
+    removeRoute(app, path); // We need to make sure Express forgets about the path (no-op if no Express)
+    app.use(path, self);  // Install this service instance
 
     // Get the service name and standard settings
     this.name = path;
 
     // Construct the two helper services
     this.localServiceName = this.thisName + '_local';
-    this.localServiceQueue = this.thisName + '_queue';
+    this.localQueueName = this.thisName + '_queue';
 
     this.storage = this.options.storage ? this.options.storage : localStorage;
     this.localSpecOptions = { name: this.localServiceName, storage: this.storage, store: this.options.store, reuseKeys: this.options.fixedName !== '' };
     let localOptions = Object.assign({}, this.options, this.localSpecOptions);
-    let queueOptions = { id: 'id', name: this.localServiceQueue, storage: this.storage, paginate: null, multi: true, reuseKeys: this.options.fixedName !== '' };
+    let queueOptions = { id: 'id', name: this.localQueueName, storage: this.storage, paginate: null, multi: true, reuseKeys: this.options.fixedName !== '' };
 
-    debug(`  Setting up services '${this.localServiceName}' and '${this.localServiceQueue}'...`);
+    debug(`  Setting up services '${this.localServiceName}' and '${this.localQueueName}'...`);
     app.use(this.localServiceName, ls(localOptions));
-    app.use(this.localServiceQueue, ls(queueOptions));
+    app.use(this.localQueueName, ls(queueOptions));
 
     this.localService = app.service(this.localServiceName);
-    this.localQueue = app.service(this.localServiceQueue);
+    this.localQueue = app.service(this.localQueueName);
 
     // We need to make sure that localService is properly initiated - make a dummy search
     //    (one of the quirks of feathers-localstorage)
-    await this.localService.ready();
+    this.localService.ready();
 
     // The initialization/setup of the localService adapter screws-up our options object
     this.options = this.wrapperOptions;
@@ -147,11 +153,6 @@ class OwnClass extends AdapterService {
     this.syncedAt = new Date(this.storage.getItem(this.thisName+'_syncedAt') || 0).toISOString();
     this.storage.setItem(this.thisName+'_syncedAt', new Date(this.syncedAt).toISOString());
 
-    // This is necessary if we get updates to options (e.g. .options.multi = ['patch'])
-    if (!(this.remoteService instanceof AdapterService)) {
-      this._listenOptions();
-    }
-
     // Make sure that the wrapped service is setup correctly
     if (typeof this.remoteService.setup === 'function') {
       this.remoteService.setup(app, path);
@@ -162,6 +163,11 @@ class OwnClass extends AdapterService {
       this._timedSyncHandle = setInterval(() => self.sync(), self.options.timedSync);
     }
 
+    // This is necessary if we get updates to options (e.g. .options.multi = ['patch'])
+    // if (!(this.remoteService instanceof AdapterService)) {
+      this._listenOptions();
+    // }
+
     debug('  Done.');
     return true;
   }
@@ -169,7 +175,7 @@ class OwnClass extends AdapterService {
   _listenOptions () {
     // This is necessary if we get updates to options (e.g. .options.multi = ['patch'])
 
-    let self = this;
+    const self = this;
     let optProxy = new OptionsProxy(self.thisName);
 
     this.options = optProxy.observe(Object.assign(
@@ -235,7 +241,7 @@ class OwnClass extends AdapterService {
 
   async _create (data, params, ts = 0) {
     debug(`Calling _create(${JSON.stringify(data)}, ${JSON.stringify(params)}, ${ts})`);
-    let self = this;
+    const self = this;
     if (Array.isArray(data)) {
       const multi = this.allowsMulti('create');
       if (!multi) {
@@ -278,7 +284,7 @@ class OwnClass extends AdapterService {
     // Start actual mutation on remote service
     [err, res] = await to(this.localService.create(newData, clone(params)));
     if (res) {
-      this.remoteService.create(res, clone(params))
+      this.remoteService.create.call(this.remoteService, res, clone(params))
         .then(async rres => {
           await to(self._removeQueuedEvent('_create0', queueId, newData, newData.updatedAt));
           await self._patchIfNotRemoved(rres[self.id], rres);
@@ -323,7 +329,7 @@ class OwnClass extends AdapterService {
 
   async _update (id, data, params = {}) {
     debug(`Calling _update(${id}, ${JSON.stringify(data)}, ${JSON.stringify(params)}})`);
-    let self = this;
+    const self = this;
 
     if (id === null || Array.isArray(data)) {
       return Promise.reject(new errors.BadRequest(
@@ -395,7 +401,7 @@ class OwnClass extends AdapterService {
 
   async _patch (id, data, params = {}, ts = 0) {
     debug(`Calling _patch(${id}, ${JSON.stringify(data)}, ${JSON.stringify(params)}})`);
-    let self = this;
+    const self = this;
     if (id === null) {
       const multi = this.allowsMulti('patch');
       if (!multi) {
@@ -488,7 +494,7 @@ class OwnClass extends AdapterService {
 
   async _remove (id, params = {}) {
     debug(`Calling _remove(${id}, ${JSON.stringify(params)}})`);
-    let self = this;
+    const self = this;
 
     if (id === null) {
       const multi = this.allowsMulti('remove');
@@ -646,7 +652,7 @@ class OwnClass extends AdapterService {
 
     const syncOptions = await this._getSyncOptions(bAll);
     debug(`${this.type}.sync(${JSON.stringify(syncOptions)}) started...`);
-    let self = this;
+    const self = this;
     let result = true;
 
     let [err, snap] = await to( snapshot(this.remoteService, syncOptions) )
