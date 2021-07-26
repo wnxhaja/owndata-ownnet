@@ -2256,7 +2256,7 @@ var OwnClass = /*#__PURE__*/function (_adapter_commons_1$Ad) {
               case 3:
                 this._setupPerformed = true;
 
-                if (typeof localStorage === 'undefined') {
+                if (typeof localStorage === 'undefined' && !this.wrapperOptions.storage) {
                   debug('Simulating localStorage...');
                   LocalStorage = __webpack_require__(/*! node-localstorage */ "./node_modules/node-localstorage/LocalStorage.js").LocalStorage;
                   __webpack_require__.g.localStorage = new LocalStorage('./.scratch');

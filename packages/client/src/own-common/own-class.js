@@ -76,7 +76,7 @@ class OwnClass extends AdapterService {
     }
     this._setupPerformed = true;
 
-    if (typeof localStorage === 'undefined' && !this.options.storage) {
+    if (typeof localStorage === 'undefined' && !this.wrapperOptions.storage) {
       debug('Simulating localStorage...');
       let LocalStorage = require('node-localstorage').LocalStorage;
       global.localStorage = new LocalStorage('./.scratch');
